@@ -1,4 +1,4 @@
-﻿namespace PowerOutageSchedule.Services
+﻿namespace PowerOutageSchedule.Services.Implementations
 {
     using System;
     using System.Collections.Generic;
@@ -6,12 +6,20 @@
     using System.Linq;
     using System.Text.Json;
     using System.Threading.Tasks;
-
+    using Microsoft.Extensions.Logging;
     using PowerOutageSchedule.Models;
+    using PowerOutageSchedule.Services.Interfaces;
 
-    public class OutageService : IOutageService
+    public class OutageImportExportService : IOutageImportService, IOutageExportService
     {
-        private List<OutageSchedule> _schedules = new();
+        private readonly DataStore _dataStore;
+        private readonly ILogger<OutageImportExportService> _logger;
+
+        public OutageImportExportService(DataStore dataStore, ILogger<OutageImportExportService> logger)
+        {
+            _dataStore = dataStore;
+            _logger = logger;
+        }
 
         public async Task<IEnumerable<OutageSchedule>> ImportSchedulesAsync(string filePath)
         {
@@ -35,49 +43,27 @@
                     .Select(i =>
                     {
                         var times = i.Split('-');
-                        if (times.Length != 2 || !TimeSpan.TryParse(times[0], out TimeSpan start) || !TimeSpan.TryParse(times[1], out TimeSpan end))
+                        if (times.Length != 2 || !TimeSpan.TryParse(times[0], out _) || !TimeSpan.TryParse(times[1], out _))
                         {
                             throw new FormatException("Invalid time interval");
                         }
-                        return new TimeInterval { Start = start, End = end };
+                        return new TimeInterval { Start = times[0], End = times[1] };
                     })
                     .ToList();
 
                 schedules.Add(new OutageSchedule { GroupNumber = groupNumber, OutageIntervals = intervals });
             }
 
-            _schedules = schedules;
-            return _schedules;
-        }
-
-        public IEnumerable<OutageSchedule> GetCurrentOutages()
-        {
-            var now = DateTime.Now.TimeOfDay;
-            return _schedules.Where(s => s.OutageIntervals.Any(i => i.Start <= now && i.End >= now));
-        }
-
-        public OutageSchedule GetScheduleByGroup(int groupNumber)
-        {
-            return _schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
-        }
-
-        public void EditSchedule(int groupNumber, OutageSchedule schedule)
-        {
-            var existingSchedule = _schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
-            if (existingSchedule != null)
-            {
-                existingSchedule.OutageIntervals = schedule.OutageIntervals;
-            }
-            else
-            {
-                _schedules.Add(schedule);
-            }
+            _dataStore.Schedules = schedules;
+            _logger.LogInformation("Imported schedules: {Schedules}", schedules);
+            return _dataStore.Schedules;
         }
 
         public async Task ExportSchedulesAsync(string filePath)
         {
-            var json = JsonSerializer.Serialize(_schedules);
+            var json = JsonSerializer.Serialize(_dataStore.Schedules);
             await File.WriteAllTextAsync(filePath, json);
         }
     }
+
 }
