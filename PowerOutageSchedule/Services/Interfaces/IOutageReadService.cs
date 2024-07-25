@@ -7,5 +7,7 @@
     {
         IEnumerable<OutageSchedule> GetCurrentOutages();
         OutageSchedule GetScheduleByGroup(int groupNumber);
+        GroupOutageStatus GetGroupOutageStatus(int groupNumber);
     }
+
 }

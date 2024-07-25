@@ -62,13 +62,27 @@
         }
 
         [HttpGet("current")]
-        [SwaggerOperation(Summary = "Gets current outages", Description = "Returns the list of groups with current outages")]
-        [SwaggerResponse(StatusCodes.Status200OK, "Returns current outages", typeof(IEnumerable<OutageSchedule>))]
-        public IActionResult GetCurrentOutages()
+        [SwaggerOperation(Summary = "Gets current outages or status for a specific group", Description = "Returns the list of groups with current outages or status for a specific group")]
+        [SwaggerResponse(StatusCodes.Status200OK, "Returns current outages or status for a specific group", typeof(IEnumerable<OutageSchedule>))]
+        public IActionResult GetCurrentOutages([FromQuery] int? groupNumber)
         {
-            var outages = _readService.GetCurrentOutages();
-            return Ok(outages);
+            if (groupNumber.HasValue)
+            {
+                var status = _readService.GetGroupOutageStatus(groupNumber.Value);
+                if (status == null)
+                {
+                    return NotFound($"Group {groupNumber.Value} not found.");
+                }
+                return Ok(status);
+            }
+            else
+            {
+                var outages = _readService.GetCurrentOutages();
+                return Ok(outages);
+            }
         }
+
+
 
         [HttpGet("group/{groupNumber}")]
         [SwaggerOperation(Summary = "Gets schedule for a specific group", Description = "Returns the outage schedule for the specified group number")]
@@ -97,7 +111,7 @@
 
             var schedule = new OutageSchedule
             {
-                GroupNumber = scheduleDto.GroupNumber,
+                GroupNumber = groupNumber,
                 OutageIntervals = scheduleDto.OutageIntervals.Select(i => new TimeInterval { Start = i.Start, End = i.End }).ToList()
             };
 
