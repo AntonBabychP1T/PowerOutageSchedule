@@ -8,8 +8,7 @@
 
     public class TimeInterval
     {
-        public TimeSpan Start { get; set; }
-        public TimeSpan End { get; set; }
+        public string Start { get; set; }
+        public string End { get; set; }
     }
-
 }
