@@ -97,13 +97,14 @@
 
             var schedule = new OutageSchedule
             {
-                GroupNumber = scheduleDto.GroupNumber,
+                GroupNumber = groupNumber, 
                 OutageIntervals = scheduleDto.OutageIntervals.Select(i => new TimeInterval { Start = i.Start, End = i.End }).ToList()
             };
 
             _editService.EditSchedule(groupNumber, schedule);
             return NoContent();
         }
+
 
         [HttpGet("export")]
         [SwaggerOperation(Summary = "Exports all schedules", Description = "Exports all outage schedules to a JSON file")]

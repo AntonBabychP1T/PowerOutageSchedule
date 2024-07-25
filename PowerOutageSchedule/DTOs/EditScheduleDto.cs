@@ -4,7 +4,6 @@
 
     public class EditScheduleDto
     {
-        public int GroupNumber { get; set; }
         public List<TimeIntervalDto> OutageIntervals { get; set; }
     }
 }
