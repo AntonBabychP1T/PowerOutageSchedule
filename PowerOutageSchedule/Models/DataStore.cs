@@ -1,7 +1,7 @@
-﻿namespace PowerOutageSchedule.Models
-{
-    public class DataStore
+﻿    namespace PowerOutageSchedule.Models
     {
-        public List<OutageSchedule> Schedules { get; set; } = new();
+        public class DataStore
+        {
+            public List<OutageSchedule> Schedules { get; set; } = new();
+        }
     }
-}

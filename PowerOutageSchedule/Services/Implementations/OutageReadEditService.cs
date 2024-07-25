@@ -1,58 +1,96 @@
-﻿namespace PowerOutageSchedule.Services.Implementations
+﻿using PowerOutageSchedule.Models;
+using PowerOutageSchedule.Services.Interfaces;
+
+public class OutageReadEditService : IOutageReadService, IOutageEditService
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using Microsoft.Extensions.Logging;
-    using PowerOutageSchedule.Models;
-    using PowerOutageSchedule.Services.Interfaces;
+    private readonly DataStore _dataStore;
+    private readonly ILogger<OutageReadEditService> _logger;
 
-    public class OutageReadEditService : IOutageReadService, IOutageEditService
+    public OutageReadEditService(DataStore dataStore, ILogger<OutageReadEditService> logger)
     {
-        private readonly DataStore _dataStore;
-        private readonly ILogger<OutageReadEditService> _logger;
+        _dataStore = dataStore;
+        _logger = logger;
+    }
 
-        public OutageReadEditService(DataStore dataStore, ILogger<OutageReadEditService> logger)
+    public IEnumerable<OutageSchedule> GetCurrentOutages()
+    {
+        var now = DateTime.Now.TimeOfDay;
+        return _dataStore.Schedules.Where(s => s.OutageIntervals.Any(i =>
         {
-            _dataStore = dataStore;
-            _logger = logger;
+            var start = TimeSpan.Parse(i.Start);
+            var end = TimeSpan.Parse(i.End);
+            return start <= now && end >= now;
+        })).ToList();
+    }
+
+    public OutageSchedule GetScheduleByGroup(int groupNumber)
+    {
+        return _dataStore.Schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
+    }
+
+    public GroupOutageStatus GetGroupOutageStatus(int groupNumber)
+    {
+        var schedule = GetScheduleByGroup(groupNumber);
+        if (schedule == null)
+        {
+            return null;
         }
 
-        public IEnumerable<OutageSchedule> GetCurrentOutages()
+        var now = DateTime.Now.TimeOfDay;
+        var currentInterval = schedule.OutageIntervals
+            .FirstOrDefault(interval => TimeSpan.Parse(interval.Start) <= now && TimeSpan.Parse(interval.End) >= now);
+
+        if (currentInterval != null)
         {
-            var now = DateTime.Now.TimeOfDay;
-            var currentOutages = _dataStore.Schedules.Where(s => s.OutageIntervals.Any(i =>
+            var timeUntilPowerOn = TimeSpan.Parse(currentInterval.End) - now;
+            return new GroupOutageStatus
             {
-                var start = TimeSpan.Parse(i.Start);
-                var end = TimeSpan.Parse(i.End);
-                return start <= now && end >= now;
-            })).ToList();
-
-            _logger.LogInformation("Current outages: {CurrentOutages}", currentOutages);
-            return currentOutages;
+                GroupNumber = groupNumber,
+                HasPower = false,
+                Message = $"Power is off. Time until power on: {timeUntilPowerOn.ToString(@"hh\:mm\:ss")}"
+            };
         }
-
-        public OutageSchedule GetScheduleByGroup(int groupNumber)
+        else
         {
-            var schedule = _dataStore.Schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
-            _logger.LogInformation("Schedule for group {GroupNumber}: {Schedule}", groupNumber, schedule);
-            return schedule;
-        }
+            var nextOutage = schedule.OutageIntervals
+                .Where(interval => TimeSpan.Parse(interval.Start) > now)
+                .OrderBy(interval => TimeSpan.Parse(interval.Start))
+                .FirstOrDefault();
 
-        public void EditSchedule(int groupNumber, OutageSchedule schedule)
-        {
-            var existingSchedule = _dataStore.Schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
-            if (existingSchedule != null)
+            if (nextOutage != null)
             {
-                existingSchedule.OutageIntervals = schedule.OutageIntervals;
-                _logger.LogInformation("Edited schedule for group {GroupNumber}: {Schedule}", groupNumber, existingSchedule);
+                var timeUntilNextOutage = TimeSpan.Parse(nextOutage.Start) - now;
+                return new GroupOutageStatus
+                {
+                    GroupNumber = groupNumber,
+                    HasPower = true,
+                    Message = $"Power is on. Time until next outage: {timeUntilNextOutage.ToString(@"hh\:mm\:ss")}"
+                };
             }
             else
             {
-                _dataStore.Schedules.Add(schedule);
-                _logger.LogInformation("Added new schedule for group {GroupNumber}: {Schedule}", groupNumber, schedule);
+                return new GroupOutageStatus
+                {
+                    GroupNumber = groupNumber,
+                    HasPower = true,
+                    Message = "Power is on. No more outages today."
+                };
             }
         }
     }
 
+    public void EditSchedule(int groupNumber, OutageSchedule schedule)
+    {
+        var existingSchedule = _dataStore.Schedules.FirstOrDefault(s => s.GroupNumber == groupNumber);
+        if (existingSchedule != null)
+        {
+            existingSchedule.OutageIntervals = schedule.OutageIntervals;
+            _logger.LogInformation("Edited schedule for group {GroupNumber}: {Schedule}", groupNumber, existingSchedule);
+        }
+        else
+        {
+            _dataStore.Schedules.Add(schedule);
+            _logger.LogInformation("Added new schedule for group {GroupNumber}: {Schedule}", groupNumber, schedule);
+        }
+    }
 }
