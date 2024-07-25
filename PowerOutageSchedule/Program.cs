@@ -1,18 +1,27 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using PowerOutageSchedule.Services;
+using Microsoft.OpenApi.Models;
+using PowerOutageSchedule.Models;
+using PowerOutageSchedule.Services.Implementations;
+using PowerOutageSchedule.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "PowerOutageSchedule API", Version = "v1" });
+    c.EnableAnnotations();
+});
 
-// Register the OutageService
-builder.Services.AddSingleton<IOutageService, OutageService>();
+// Register the data store
+builder.Services.AddSingleton<DataStore>();
+
+// Register the services
+builder.Services.AddSingleton<IOutageImportService, OutageImportExportService>();
+builder.Services.AddSingleton<IOutageExportService, OutageImportExportService>();
+builder.Services.AddSingleton<IOutageReadService, OutageReadEditService>();
+builder.Services.AddSingleton<IOutageEditService, OutageReadEditService>();
 
 var app = builder.Build();
 
@@ -20,7 +29,10 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "PowerOutageSchedule API v1");
+    });
 }
 
 app.UseHttpsRedirection();
